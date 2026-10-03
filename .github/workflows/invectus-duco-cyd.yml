@@ -1,0 +1,50 @@
+name: Invectus DUCO CYD Build
+
+on:
+  push:
+    branches: ["invectus-duco-cyd-build"]
+    paths:
+      - "invectus-duco-cyd/**"
+      - ".github/workflows/invectus-duco-cyd.yml"
+  pull_request:
+    branches: ["main"]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install PlatformIO and esptool
+        run: pip install platformio esptool
+
+      - name: Build firmware
+        working-directory: invectus-duco-cyd
+        run: platformio run -e cyd2432s024c
+
+      - name: Merge flash image
+        working-directory: invectus-duco-cyd
+        run: |
+          python -m esptool --chip esp32 merge_bin             -o Invectus_DUCO_CYD_2432S024C_merged.bin             0x1000 .pio/build/cyd2432s024c/bootloader.bin             0x8000 .pio/build/cyd2432s024c/partitions.bin             0xE000 ~/.platformio/packages/framework-arduinoespressif32/tools/partitions/boot_app0.bin             0x10000 .pio/build/cyd2432s024c/firmware.bin
+
+      - name: Copy component binaries
+        working-directory: invectus-duco-cyd
+        run: |
+          mkdir -p release
+          cp Invectus_DUCO_CYD_2432S024C_merged.bin release/
+          cp .pio/build/cyd2432s024c/bootloader.bin release/
+          cp .pio/build/cyd2432s024c/partitions.bin release/
+          cp .pio/build/cyd2432s024c/firmware.bin release/
+          cp ~/.platformio/packages/framework-arduinoespressif32/tools/partitions/boot_app0.bin release/
+
+      - name: Upload firmware
+        uses: actions/upload-artifact@v4
+        with:
+          name: Invectus-DUCO-CYD-2432S024C
+          path: invectus-duco-cyd/release/*
+          retention-days: 14
