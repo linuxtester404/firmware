@@ -6,6 +6,8 @@ on:
     paths:
       - "invectus-duco-cyd/**"
       - ".github/workflows/invectus-duco-cyd.yml"
+  pull_request:
+    branches: ["main"]
   workflow_dispatch:
 
 jobs:
