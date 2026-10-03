@@ -1,0 +1,33 @@
+name: Invectus CYD Display Diagnostic
+
+on:
+  push:
+    branches: ["invectus-cyd-display-diagnostic"]
+    paths:
+      - "cyd-display-diag/**"
+      - ".github/workflows/cyd-display-diag.yml"
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install PlatformIO and esptool
+        run: pip install platformio esptool
+      - name: Build
+        working-directory: cyd-display-diag
+        run: platformio run -e cyd2432s024c_diag
+      - name: Merge image
+        working-directory: cyd-display-diag
+        run: |
+          python -m esptool --chip esp32 merge_bin             -o Invectus_CYD_2432S024C_DISPLAY_DIAG_merged.bin             0x1000 .pio/build/cyd2432s024c_diag/bootloader.bin             0x8000 .pio/build/cyd2432s024c_diag/partitions.bin             0xE000 ~/.platformio/packages/framework-arduinoespressif32/tools/partitions/boot_app0.bin             0x10000 .pio/build/cyd2432s024c_diag/firmware.bin
+      - name: Upload diagnostic
+        uses: actions/upload-artifact@v4
+        with:
+          name: Invectus-CYD-Display-Diagnostic
+          path: cyd-display-diag/Invectus_CYD_2432S024C_DISPLAY_DIAG_merged.bin
+          retention-days: 14
