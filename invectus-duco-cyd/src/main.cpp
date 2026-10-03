@@ -12,7 +12,7 @@
 #include "Counter.h"
 #include "DSHA1.h"
 
-static constexpr char APP_VERSION[] = "1.0.0";
+static constexpr char APP_VERSION[] = "1.0.1-displayfix";
 static constexpr char DUCO_PROTOCOL_VERSION[] = "4.3";
 static constexpr char DUCO_POOLPICKER[] = "https://server.duinocoin.com/getPool";
 static constexpr char DUCO_BALANCE_BASE[] = "https://server.duinocoin.com/balances/";
@@ -169,6 +169,9 @@ static void setNodeStat(const String &name) {
 }
 
 static void updateFeedback(const String &feedback, int core, float hashRate, uint32_t diff, uint32_t pingMs) {
+  Serial.printf("[DUCO] core=%d result=%s hashrate=%.2f H/s diff=%lu ping=%lu ms\n",
+                core, feedback.c_str(), hashRate,
+                (unsigned long)diff, (unsigned long)pingMs);
   portENTER_CRITICAL(&statsMux);
   stats.coreHashrate[core] = hashRate;
   stats.difficulty = diff;
@@ -675,7 +678,12 @@ static void handleTouch() {
 
 void setup() {
   Serial.begin(115200);
-  delay(100);
+  delay(250);
+  Serial.println();
+  Serial.println("======================================");
+  Serial.println(" Invectus DUCO CYD v1.0.1-displayfix");
+  Serial.println(" ESP32-2432S024C / ILI9341_2 / HSPI");
+  Serial.println("======================================");
 
   uint64_t mac = ESP.getEfuseMac();
   char chip[13];
@@ -685,28 +693,51 @@ void setup() {
 
   nodeMutex = xSemaphoreCreateMutex();
 
+  // Keep the backlight dark until the panel has completed its init sequence.
   pinMode(TFT_BL, OUTPUT);
-  digitalWrite(TFT_BL, HIGH);
+  digitalWrite(TFT_BL, LOW);
+  delay(50);
+
+  Serial.println("[LCD] Initializing TFT_eSPI...");
   tft.init();
   tft.setRotation(SCREEN_ROTATION);
+  tft.fillScreen(TFT_RED);
+  digitalWrite(TFT_BL, HIGH);
+  delay(180);
+  tft.fillScreen(TFT_GREEN);
+  delay(180);
+  tft.fillScreen(TFT_BLUE);
+  delay(180);
   tft.fillScreen(C_BG);
-  touch.begin(SCREEN_W, SCREEN_H, SCREEN_ROTATION);
+  Serial.printf("[LCD] Ready: %dx%d rotation=%u\n", tft.width(), tft.height(), SCREEN_ROTATION);
+
+  bool touchOk = touch.begin(SCREEN_W, SCREEN_H, SCREEN_ROTATION);
+  Serial.printf("[TOUCH] CST820 %s\n", touchOk ? "detected" : "not responding");
 
   drawText("INVECTUS DUCO", 20, 36, C_GOLD, 3);
   drawText("ESP32-2432S024C", 20, 78, C_TEXT, 2);
   drawText("Firmware " + String(APP_VERSION), 20, 110, C_MUTED, 1);
   drawText("Loading configuration...", 20, 146, C_CYAN, 1);
 
+  Serial.println("[CFG] Loading saved profile...");
   loadConfig();
+  Serial.println("[WIFI] Starting Wi-Fi/setup flow...");
   setupPortal();
+  Serial.printf("[WIFI] Connected SSID=%s IP=%s\n",
+                WiFi.SSID().c_str(), WiFi.localIP().toString().c_str());
 
   drawText("Connected: " + WiFi.localIP().toString(), 20, 170, C_GREEN, 1);
   delay(500);
 
+  Serial.println("[DUCO] Selecting mining node...");
   if (!selectNode()) {
+    Serial.println("[DUCO] Poolpicker unavailable; miners will retry.");
     drawText("Poolpicker unavailable - retrying...", 20, 190, C_RED, 1);
+  } else {
+    Serial.printf("[DUCO] Node selected: %s\n", nodeName.c_str());
   }
 
+  Serial.println("[DUCO] Starting dual-core mining tasks...");
   xTaskCreatePinnedToCore(minerWorker, "duco0", 8192, reinterpret_cast<void *>(0), 1, &minerTask0, 0);
   xTaskCreatePinnedToCore(minerWorker, "duco1", 8192, reinterpret_cast<void *>(1), 1, &minerTask1, 1);
 
