@@ -2,7 +2,7 @@ name: Invectus DUCO CYD Build
 
 on:
   push:
-    branches: ["invectus-duco-cyd-build"]
+    branches: ["invectus-duco-cyd-build", "invectus-duco-cyd-display-fix"]
     paths:
       - "invectus-duco-cyd/**"
       - ".github/workflows/invectus-duco-cyd.yml"
